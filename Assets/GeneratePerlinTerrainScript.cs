@@ -4,12 +4,10 @@ using UnityEngine;
 public class GeneratePerlinTerrainScript : MonoBehaviour {
 
     // you can modify these variables via the inspector in unity
-    public float depth = 20.0f;
+    public float amplitude = 128.0f;
+    public float frequency = 4.0f;
     public int width = 200;
     public int height = 200;
-    public float frequency = 1.0f;
-    public float amplitude = 1.0f;
-    public float scale = 20.0f;
     public float textureScale = 1.0f;
     // private variables used by this file not referenced or open in unity
     private float[,] heights;
@@ -19,10 +17,10 @@ public class GeneratePerlinTerrainScript : MonoBehaviour {
     private System.Random random = new System.Random();
     private Renderer rend;
     // to keep track if we have changes
-    private float _oldDepth;
+    private float _oldAmplitude;
     private float _oldWidth;
     private float _oldHeight;
-    private float _oldScale;
+    private float _oldFrequency;
     private float _oldTextureScale;
 
     void Start ()
@@ -44,25 +42,25 @@ public class GeneratePerlinTerrainScript : MonoBehaviour {
     }
     void CaptureUnityFacingVariables()
     {
-        _oldDepth = depth;
+        _oldAmplitude = amplitude;
         _oldWidth = width;
         _oldHeight = height;
-        _oldScale = scale;
+        _oldFrequency = frequency;
         _oldTextureScale = textureScale;
     }
 
     bool UnityVariableChanged()
     {
-        return _oldDepth != depth ||
+        return _oldAmplitude != amplitude ||
              _oldWidth != width ||
              _oldHeight != height ||
-             _oldScale != scale ||
+             _oldAmplitude != frequency ||
              _oldTextureScale != textureScale;
     }
 
     TerrainData GeneratePerlinTerrain(TerrainData terrainData)
     {
-        terrainData.size = new Vector3(width, depth, height);
+        terrainData.size = new Vector3(width, amplitude, height);
         terrainData.SetHeights(0, 0, GenerateHeights());
         return terrainData;
     }
@@ -116,19 +114,19 @@ public class GeneratePerlinTerrainScript : MonoBehaviour {
                 fHeight *= textureScale;
 
                 // if we're above water, start drawing grass
-                if (fHeight > (depth * 0.15))
+                if (fHeight > (amplitude * 0.15))
                 {
                     splatWeights[2] = 0.25f;
                     splatWeights[0] = 0.25f;
                 }
                 // now we're fully above water
-                if (fHeight > (depth * 0.25))
+                if (fHeight > (amplitude * 0.25))
                 {
                     splatWeights[2] = 0;
                     splatWeights[0] = 0.5f;
                 }
                 // now we're getting to the mountains
-                if (fHeight > (depth * 0.6))
+                if (fHeight > (amplitude * 0.6))
                 {
                     // no water influence
                     splatWeights[2] = 0;
@@ -138,7 +136,7 @@ public class GeneratePerlinTerrainScript : MonoBehaviour {
                     splatWeights[1] = 0.5f;
                 }
                 // now we're in the mountains
-                if (fHeight > (depth * 0.7))
+                if (fHeight > (amplitude * 0.7))
                 {
                     // no water influence
                     splatWeights[2] = 0;
@@ -166,11 +164,26 @@ public class GeneratePerlinTerrainScript : MonoBehaviour {
         terrain.terrainData.SetAlphamaps(0, 0, splatmapData);
     }
 
-    float CalculateHeight(int x, int y)
+    float CalculateHeight(int x, int y, int octaves = 10)
     {
-        float xCoord = (float)x / terrain.terrainData.heightmapWidth * scale;
-        float yCoord = (float)y / terrain.terrainData.heightmapHeight * scale;
-
-        return Mathf.PerlinNoise(xCoord, yCoord);
+        float persistence;
+        float noise = 0f;
+        float maxValue = 0; // used for clamping final result
+        float localFrequency = frequency;
+        float localAmplitude = amplitude;
+        float xCoord;
+        float yCoord;
+        for (int i = 0; i < octaves; i++)
+        {
+            persistence = 1 / i; // more weight the closer you are to 1
+            xCoord = (float)x / terrain.terrainData.heightmapWidth * localFrequency;
+            yCoord = (float)y / terrain.terrainData.heightmapHeight * localFrequency;
+            noise += Mathf.PerlinNoise(xCoord, yCoord) * localAmplitude;
+            // now change the frequency and amplitude for the next octave
+            maxValue += localAmplitude;
+            localAmplitude *= persistence;
+            localFrequency *= 2;
+        }
+        return noise / maxValue;
     }
 }
